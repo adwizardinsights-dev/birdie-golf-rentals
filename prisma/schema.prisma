@@ -1,0 +1,355 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for customers and admins
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  phone         String?
+  firstName     String
+  lastName      String
+  password      String?   // For admin users
+  role          UserRole  @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  bookings      Booking[]
+  payments      Payment[]
+  
+  @@map("users")
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  DRIVER
+}
+
+// Golf club sets available for rent
+model GolfClubSet {
+  id              String    @id @default(uuid())
+  name            String    // e.g., "Standard Set", "Premium Set"
+  tier            ClubTier  // STANDARD, PREMIUM, TOUR
+  brand           String    // e.g., "TaylorMade", "Callaway"
+  model           String?   // e.g., "Stealth", "Rogue"
+  description     String?
+  pricePerDay     Decimal   @db.Decimal(10, 2)
+  depositAmount   Decimal   @db.Decimal(10, 2) @default(0)
+  imageUrl        String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  inventory       Inventory[]
+  bookings        Booking[]
+  
+  @@map("golf_club_sets")
+}
+
+enum ClubTier {
+  STANDARD
+  PREMIUM
+  TOUR
+}
+
+// Inventory tracking for each location
+model Inventory {
+  id              String   @id @default(uuid())
+  clubSetId       String
+  locationId      String
+  quantityTotal   Int
+  quantityAvailable Int
+  quantityReserved  Int      @default(0)
+  
+  // Relations
+  clubSet         GolfClubSet @relation(fields: [clubSetId], references: [id])
+  location        Location    @relation(fields: [locationId], references: [id])
+  
+  @@unique([clubSetId, locationId])
+  @@map("inventory")
+}
+
+// Delivery locations (hotels, golf courses, areas)
+model Location {
+  id              String   @id @default(uuid())
+  name            String   // e.g., "Fontainebleau Hotel"
+  type            LocationType
+  address         String
+  city            String
+  state           String
+  zipCode         String
+  country         String   @default("US")
+  phone           String?
+  email           String?
+  latitude        Float?
+  longitude       Float?
+  deliveryFee     Decimal  @db.Decimal(10, 2) @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  inventory       Inventory[]
+  bookings        Booking[]
+  
+  @@map("locations")
+}
+
+enum LocationType {
+  HOTEL
+  GOLF_COURSE
+  AIRBNB
+  RESIDENCE
+  BUSINESS
+}
+
+// Bookings / Rentals
+model Booking {
+  id                  String        @id @default(uuid())
+  bookingNumber       String        @unique // Human-readable booking ID
+  
+  // User info
+  userId              String
+  user                User          @relation(fields: [userId], references: [id])
+  
+  // Club set info
+  clubSetId           String
+  clubSet             GolfClubSet   @relation(fields: [clubSetId], references: [id])
+  
+  // Location info
+  locationId          String?
+  location            Location?     @relation(fields: [locationId], references: [id])
+  deliveryAddress     String
+  deliveryAddress2    String?
+  deliveryCity        String
+  deliveryState       String
+  deliveryZipCode     String
+  deliveryInstructions String?
+  
+  // Delivery details
+  deliveryDate        DateTime
+  deliveryTimeSlot    TimeSlot      // MORNING, AFTERNOON, EVENING
+  deliveryTime        String?       // Specific time if requested
+  
+  // Return details
+  returnDate          DateTime
+  returnTimeSlot      TimeSlot?
+  returnTime          String?
+  
+  // Tee time (optional)
+  teeTime             DateTime?
+  golfCourseName      String?
+  
+  // Pricing
+  rentalDays          Int
+  dailyRate           Decimal       @db.Decimal(10, 2)
+  subtotal            Decimal       @db.Decimal(10, 2)
+  deliveryFee         Decimal       @db.Decimal(10, 2) @default(0)
+  deposit             Decimal       @db.Decimal(10, 2) @default(0)
+  tax                 Decimal       @db.Decimal(10, 2) @default(0)
+  total               Decimal       @db.Decimal(10, 2)
+  
+  // Status tracking
+  status              BookingStatus @default(PENDING)
+  paymentStatus       PaymentStatus @default(PENDING)
+  deliveryStatus      DeliveryStatus @default(SCHEDULED)
+  
+  // Handedness
+  handedness          Handedness    @default(RIGHT)
+  numberOfSets        Int           @default(1)
+  
+  // Timestamps
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  confirmedAt         DateTime?
+  deliveredAt         DateTime?
+  returnedAt          DateTime?
+  cancelledAt         DateTime?
+  
+  // Relations
+  payments            Payment[]
+  notifications       Notification[]
+  deliveryRoute       DeliveryRoute? @relation(fields: [deliveryRouteId], references: [id])
+  deliveryRouteId     String?
+  
+  @@map("bookings")
+}
+
+enum TimeSlot {
+  MORNING       // 8:00 AM - 12:00 PM
+  AFTERNOON     // 12:00 PM - 5:00 PM
+  EVENING       // 5:00 PM - 8:00 PM
+}
+
+enum BookingStatus {
+  PENDING       // Awaiting payment
+  CONFIRMED     // Paid, awaiting delivery
+  OUT_FOR_DELIVERY
+  DELIVERED     // With customer
+  RETURNED      // Completed
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  PARTIALLY_REFUNDED
+  FAILED
+}
+
+enum DeliveryStatus {
+  SCHEDULED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURN_SCHEDULED
+  RETURNED
+}
+
+enum Handedness {
+  LEFT
+  RIGHT
+}
+
+// Payments
+model Payment {
+  id              String   @id @default(uuid())
+  
+  bookingId       String
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  stripePaymentIntentId String? @unique
+  stripeChargeId  String?
+  
+  amount          Decimal  @db.Decimal(10, 2)
+  currency        String   @default("usd")
+  status          PaymentStatus @default(PENDING)
+  
+  paymentMethod   String?  // card, apple_pay, google_pay
+  lastFour        String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("payments")
+}
+
+// SMS/Email Notifications
+model Notification {
+  id              String   @id @default(uuid())
+  
+  bookingId       String
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  
+  type            NotificationType
+  channel         Channel    // SMS, EMAIL
+  status          NotificationStatus @default(PENDING)
+  
+  to              String     // phone or email
+  subject         String?    // for email
+  body            String
+  
+  sentAt          DateTime?
+  errorMessage    String?
+  
+  createdAt       DateTime   @default(now())
+  
+  @@map("notifications")
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  PAYMENT_RECEIVED
+  DELIVERY_REMINDER
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURN_REMINDER
+  RETURN_CONFIRMED
+  CANCELLATION
+}
+
+enum Channel {
+  SMS
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// Delivery routes for drivers
+model DeliveryRoute {
+  id              String   @id @default(uuid())
+  
+  date            DateTime
+  driverId        String?
+  driverName      String?
+  
+  status          RouteStatus @default(PLANNED)
+  
+  // Route optimization
+  estimatedStart  DateTime?
+  estimatedEnd    DateTime?
+  actualStart     DateTime?
+  actualEnd       DateTime?
+  
+  // Relations
+  stops           Booking[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("delivery_routes")
+}
+
+enum RouteStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Availability calendar (for caching/complex queries)
+model Availability {
+  id              String   @id @default(uuid())
+  
+  locationId      String
+  clubSetId       String
+  date            DateTime
+  
+  morningAvailable    Int
+  afternoonAvailable  Int
+  eveningAvailable    Int
+  
+  @@unique([locationId, clubSetId, date])
+  @@map("availability")
+}
+
+// Settings/configuration
+model Setting {
+  id              String   @id @default(uuid())
+  key             String   @unique
+  value           String
+  description     String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("settings")
+}

@@ -1,0 +1,183 @@
+# Birdie Golf Rentals - System Architecture
+
+## Overview
+A full-stack golf club rental platform built with Next.js, PostgreSQL, Prisma, and Stripe.
+
+## System Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT LAYER                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │   Homepage   │  │    Booking   │  │ Confirmation │  │    Admin     │   │
+│  │              │  │     Flow     │  │    Page      │  │  Dashboard   │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
+│                                                                              │
+│  Tech: Next.js 14 (App Router), React, TypeScript, TailwindCSS              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              API LAYER                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │   /bookings  │  │  /inventory  │  │   /payments  │  │  /webhooks   │   │
+│  │              │  │              │  │              │  │              │   │
+│  │  GET / POST  │  │  GET / PATCH │  │  POST intent │  │ Stripe/Twilio│   │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
+│                                                                              │
+│  Tech: Next.js API Routes, Prisma ORM                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SERVICE LAYER                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │    Stripe    │  │    Twilio    │  │   Google     │  │   SendGrid   │   │
+│  │   Payments   │  │     SMS      │  │    Maps      │  │    Email     │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           DATA LAYER                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                      PostgreSQL Database                             │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │   │
+│  │  │  Users   │ │ Bookings │ │ Inventory│ │ Payments │ │Locations │  │   │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  Tech: PostgreSQL 15+, Prisma ORM                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Booking Flow Architecture
+
+```
+User Journey:
+┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+│  Search │───▶│ Calendar│───▶│  Clubs  │───▶│Delivery │───▶│Checkout │
+└─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
+     │              │              │              │              │
+     ▼              ▼              ▼              ▼              ▼
+┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+│  Check  │    │  Time   │    │  Price  │    │ Address │    │ Stripe  │
+│Availability    Slots  │    │  Tier   │    │ Details │    │Payment  │
+└─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
+                                                                   │
+                                                                   ▼
+┌─────────┐    ┌─────────┐    ┌─────────┐
+│  Email  │◀───│  SMS    │◀───│Confirm  │
+│Confirm  │    │Confirm  │    │  Page   │
+└─────────┘    └─────────┘    └─────────┘
+```
+
+## Folder Structure
+
+```
+birdie-golf-rentals/
+├── prisma/
+│   ├── schema.prisma          # Database schema
+│   └── seed.ts                # Seed data
+├── src/
+│   ├── app/
+│   │   ├── page.tsx           # Homepage
+│   │   ├── layout.tsx         # Root layout
+│   │   ├── booking/
+│   │   │   ├── page.tsx       # Booking flow wrapper
+│   │   │   ├── confirm/
+│   │   │   │   └── page.tsx   # Confirmation page
+│   │   │   └── success/
+│   │   │       └── page.tsx   # Success page
+│   │   ├── admin/
+│   │   │   ├── page.tsx       # Admin dashboard
+│   │   │   ├── bookings/
+│   │   │   ├── inventory/
+│   │   │   ├── customers/
+│   │   │   └── deliveries/
+│   │   └── api/
+│   │       ├── bookings/
+│   │       │   └── route.ts
+│   │       ├── inventory/
+│   │       │   └── route.ts
+│   │       ├── payments/
+│   │       │   ├── intent/route.ts
+│   │       │   └── confirm/route.ts
+│   │       └── webhooks/
+│   │           ├── stripe/route.ts
+│   │           └── twilio/route.ts
+│   ├── components/
+│   │   ├── ui/                # shadcn/ui components
+│   │   ├── home/              # Homepage sections
+│   │   ├── booking/           # Booking flow components
+│   │   └── admin/             # Admin dashboard components
+│   ├── lib/
+│   │   ├── prisma.ts          # Prisma client
+│   │   ├── stripe.ts          # Stripe config
+│   │   ├── twilio.ts          # Twilio config
+│   │   ├── sendgrid.ts        # Email config
+│   │   └── utils.ts           # Utilities
+│   ├── hooks/
+│   │   ├── useBooking.ts      # Booking state hook
+│   │   └── useInventory.ts    # Inventory hook
+│   └── types/
+│       └── index.ts           # TypeScript types
+├── public/
+│   └── images/
+├── .env                       # Environment variables
+├── next.config.js
+├── tailwind.config.ts
+└── package.json
+```
+
+## Tech Stack Details
+
+### Frontend
+- **Next.js 14** - App Router, Server Components
+- **React 18** - Hooks, Context API
+- **TypeScript** - Type safety
+- **TailwindCSS** - Utility-first styling
+- **shadcn/ui** - UI component library
+
+### Backend
+- **Next.js API Routes** - RESTful endpoints
+- **Prisma ORM** - Database operations
+- **Zod** - Input validation
+
+### Database
+- **PostgreSQL** - Primary database
+- **Prisma Migrations** - Schema versioning
+
+### Payments
+- **Stripe** - Payment processing
+- **Stripe Elements** - Secure card inputs
+
+### Notifications
+- **Twilio** - SMS notifications
+- **SendGrid/Resend** - Email notifications
+
+### Maps
+- **Google Maps API** - Location search
+- **Google Places API** - Address autocomplete
+
+## Security Considerations
+
+1. **Environment Variables** - All secrets in `.env`
+2. **Input Validation** - Zod schemas for all inputs
+3. **CSRF Protection** - Next.js built-in
+4. **SQL Injection Prevention** - Prisma parameterized queries
+5. **XSS Protection** - React escaping, CSP headers
+6. **Rate Limiting** - API route protection
+
+## Scalability
+
+1. **Database Indexing** - Query optimization
+2. **Connection Pooling** - Prisma connection management
+3. **Edge Functions** - Vercel Edge for API routes
+4. **CDN** - Static asset caching
+5. **Image Optimization** - Next.js Image component
