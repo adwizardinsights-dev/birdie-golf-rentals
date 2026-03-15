@@ -11,6 +11,7 @@ import { useBookingStore } from "@/hooks/useBookingStore"
 import { formatPrice, formatDeliveryTimeMessage } from "@/lib/utils"
 
 interface CheckoutStepProps {
+  onNext?: () => void
   onBack: () => void
   isLoading: boolean
   setIsLoading: (loading: boolean) => void

@@ -11,7 +11,9 @@ import type { Handedness } from "@/types"
 
 interface TeeTimeStepProps {
   onNext: () => void
+  onBack?: () => void
   isLoading: boolean
+  setIsLoading?: (loading: boolean) => void
 }
 
 export function TeeTimeStep({ onNext, isLoading }: TeeTimeStepProps) {

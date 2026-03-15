@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { constructStripeEvent, stripe } from "@/lib/stripe"
+import { constructStripeEvent } from "@/lib/stripe"
 import { prisma } from "@/lib/prisma"
-import { sendPaymentConfirmationEmail } from "@/lib/email"
 
 // POST /api/webhooks/stripe - Handle Stripe webhooks
 export async function POST(request: NextRequest) {
